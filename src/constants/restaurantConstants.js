@@ -1,0 +1,4 @@
+export const TOMTOM_RESTAURANT_CATEGORY = "7315";
+export const DEFAULT_SEARCH_RADIUS_M = 1500;
+export const DEFAULT_SEARCH_LIMIT = 20;
+export const MAX_RECOMMENDATIONS = 5;

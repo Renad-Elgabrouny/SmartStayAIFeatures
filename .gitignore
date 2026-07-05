@@ -1,0 +1,12 @@
+#directories
+node_modules/
+docs/
+
+# dotenv environment variable files
+.env
+.env.*
+!.env.example
+
+*.md
+
+.kilo
