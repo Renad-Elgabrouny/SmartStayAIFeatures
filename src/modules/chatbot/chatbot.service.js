@@ -71,9 +71,21 @@ export async function handleMessage({ userId, message, userProfile, authToken })
     }
 
     const executor = TOOL_EXECUTORS[call.name];
+    console.log(`Chatbot tool invoked: ${call.name}`, {
+      userId,
+      args: call.args,
+      conversationId: convo._id?.toString(),
+    });
+
     const result = executor
       ? await executor(call.args, { userId, authToken })
       : { success: false, error: `Unknown tool: ${call.name}` };
+
+    console.log(`Chatbot tool result: ${call.name}`, {
+      success: result.success ?? true,
+      error: result.error,
+      itemCount: Array.isArray(result.items) ? result.items.length : undefined,
+    });
 
     contents.push({ role: "model", parts: [{ functionCall: call }] });
     contents.push({ role: "user", parts: [{ functionResponse: { name: call.name, response: result } }] });
@@ -81,7 +93,11 @@ export async function handleMessage({ userId, message, userProfile, authToken })
 
   convo.messages = contents;
   await summarizeIfNeeded(convo);
-  await convo.save();
+  await ChatConversation.findOneAndUpdate(
+    { _id: convo._id },
+    { messages: convo.messages, summary: convo.summary },
+    { new: true, upsert: true, runValidators: true }
+  );
 
   return finalText;
 }

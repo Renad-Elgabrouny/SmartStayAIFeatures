@@ -32,6 +32,8 @@ export async function executeSearch(args, authToken) {
     };
   }
 
+  console.log("Executing tool search_properties", { args, authToken: !!authToken });
+
   try {
     const response = await axios.get(`${baseUrl}/api/properties`, {
       params: {
@@ -64,6 +66,12 @@ export async function executeSearch(args, authToken) {
 
     return { success: true, totalCount: response.data.totalCount, items };
   } catch (err) {
+    console.error("search_properties tool failed", {
+      args,
+      error: err.message,
+      status: err.response?.status,
+      detail: err.response?.data?.detail,
+    });
     return {
       success: false,
       error: err.response?.data?.detail || "Couldn't search properties right now, try again shortly.",
