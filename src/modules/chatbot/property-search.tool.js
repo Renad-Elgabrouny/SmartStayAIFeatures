@@ -12,11 +12,16 @@ export const searchPropertiesTool = {
     properties: {
       search: { type: "string", description: "Free-text keyword, e.g. a feature or title hint" },
       city: { type: "string" },
+      propertyType: { type: "integer", description: "Property type id; available values: 1, 2, 3, 4, 5" },
+      spaceType: { type: "integer", description: "Space type id; available values: 1, 2" },
       minPrice: { type: "number", description: "Lower bound of the user's budget, per night" },
       maxPrice: { type: "number", description: "Upper bound of the user's budget, per night" },
       minGuests: { type: "integer" },
       checkInDate: { type: "string", description: "YYYY-MM-DD" },
       checkOutDate: { type: "string", description: "YYYY-MM-DD" },
+      sort: { type: "integer", description: "Sort order id; available values: 1, 2, 3" },
+      page: { type: "integer", description: "Page number for paged results" },
+      pageSize: { type: "integer", description: "Number of results per page; top 5 are recommended" },
     },
     required: [],
   },
@@ -39,19 +44,22 @@ export async function executeSearch(args, authToken) {
       params: {
         Search: args.search,
         City: args.city,
+        PropertyType: args.propertyType,
+        SpaceType: args.spaceType,
         MinPrice: args.minPrice,
         MaxPrice: args.maxPrice,
         MinGuests: args.minGuests,
         CheckInDate: args.checkInDate,
         CheckOutDate: args.checkOutDate,
-        Page: 1,
-        PageSize: 6,
+        Sort: args.sort,
+        Page: args.page ?? 1,
+        PageSize: args.pageSize ?? 5,
       },
       headers: authToken ? { Authorization: authToken } : {},
       timeout: 8000,
     });
 
-    const items = (response.data.items || []).map((p) => ({
+    const items = (response.data.items || []).slice(0, 5).map((p) => ({
       id: p.id,
       title: p.title,
       propertyType: p.propertyType,
@@ -64,7 +72,14 @@ export async function executeSearch(args, authToken) {
       reviewsCount: p.reviewsCount,
     }));
 
-    return { success: true, totalCount: response.data.totalCount, items };
+    return {
+      success: true,
+      totalCount: response.data.totalCount,
+      items,
+      page: response.data.page,
+      pageSize: response.data.pageSize,
+      totalPages: response.data.totalPages,
+    };
   } catch (err) {
     console.error("search_properties tool failed", {
       args,
