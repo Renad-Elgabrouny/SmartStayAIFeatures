@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, FunctionCallingConfigMode } from "@google/genai";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -8,6 +8,8 @@ let ai = null;
 if (process.env.GEMINI_API_KEY) {
   ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 }
+
+export { FunctionCallingConfigMode };
 
 export const getGeminiClient = () => {
   if (!ai) {

@@ -1,9 +1,10 @@
-import { getGeminiClient } from "../../config/gemini.js";
+import { getGeminiClient, FunctionCallingConfigMode } from "../../config/gemini.js";
 import { GEMINI_MODEL, MAX_RAW_TURNS, SUMMARIZE_AFTER, BASE_SYSTEM_PROMPT } from "../../constants/chatbot.constants.js";
 import ChatConversation from "./chatbot.model.js";
-import { searchPropertiesTool, executeSearch } from "./property-search.tool.js";
+import { searchPropertiesTool, executeSearch, toGeminiToolDeclarations } from "./property-search.tool.js";
 
 const ALL_TOOLS = [searchPropertiesTool];
+const GEMINI_TOOLS = toGeminiToolDeclarations(ALL_TOOLS);
 
 const TOOL_EXECUTORS = {
   search_properties: (args, ctx) => executeSearch(args, ctx.authToken),
@@ -58,7 +59,13 @@ export async function handleMessage({ userId, message, userProfile, authToken })
       contents,
       config: {
         systemInstruction: BASE_SYSTEM_PROMPT(userProfile, convo.summary),
-        tools: ALL_TOOLS,
+        tools: GEMINI_TOOLS,
+        toolConfig: {
+          functionCallingConfig: {
+            mode: FunctionCallingConfigMode.ANY,
+            allowedFunctionNames: ["search_properties"],
+          },
+        },
       },
     });
 
