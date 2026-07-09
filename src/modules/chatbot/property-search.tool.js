@@ -80,22 +80,24 @@ export async function executeSearch(args, authToken) {
 
   console.log("Executing tool search_properties", { args, normalizedArgs, authToken: !!authToken });
 
+  const params = {
+    Search: normalizedArgs.search || undefined,
+    City: normalizedArgs.city || undefined,
+    PropertyType: normalizedArgs.propertyType,
+    SpaceType: normalizedArgs.spaceType,
+    MinPrice: normalizedArgs.minPrice,
+    MaxPrice: normalizedArgs.maxPrice,
+    MinGuests: normalizedArgs.minGuests,
+    CheckInDate: normalizedArgs.checkInDate,
+    CheckOutDate: normalizedArgs.checkOutDate,
+    Sort: normalizedArgs.sort,
+    Page: normalizedArgs.page,
+    PageSize: normalizedArgs.pageSize,
+  };
+
   try {
     const response = await axios.get(`${baseUrl}/api/properties`, {
-      params: {
-        Search: normalizedArgs.search,
-        City: normalizedArgs.city,
-        PropertyType: normalizedArgs.propertyType,
-        SpaceType: normalizedArgs.spaceType,
-        MinPrice: normalizedArgs.minPrice,
-        MaxPrice: normalizedArgs.maxPrice,
-        MinGuests: normalizedArgs.minGuests,
-        CheckInDate: normalizedArgs.checkInDate,
-        CheckOutDate: normalizedArgs.checkOutDate,
-        Sort: normalizedArgs.sort,
-        Page: normalizedArgs.page,
-        PageSize: normalizedArgs.pageSize,
-      },
+      params,
       headers: authToken ? { Authorization: authToken } : {},
       timeout: 8000,
     });
@@ -106,9 +108,14 @@ export async function executeSearch(args, authToken) {
       propertyType: p.propertyType,
       spaceType: p.spaceType,
       city: p.city,
+      country: p.country,
       pricePerNight: p.pricePerNight,
       currency: p.currency,
+      coverImageUrl: p.coverImageUrl,
       maxGuests: p.maxGuests,
+      bedrooms: p.bedrooms,
+      beds: p.beds,
+      bathrooms: p.bathrooms,
       averageRating: p.averageRating,
       reviewsCount: p.reviewsCount,
     }));

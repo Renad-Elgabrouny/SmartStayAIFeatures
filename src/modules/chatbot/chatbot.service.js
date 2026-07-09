@@ -38,6 +38,32 @@ async function summarizeIfNeeded(convo) {
   convo.messages = recent;
 }
 
+async function generateWithTools(ai, contents, userProfile, summary) {
+  return ai.models.generateContent({
+    model: GEMINI_MODEL,
+    contents,
+    config: {
+      systemInstruction: BASE_SYSTEM_PROMPT(userProfile, summary),
+      tools: GEMINI_TOOLS,
+      toolConfig: {
+        functionCallingConfig: {
+          mode: FunctionCallingConfigMode.AUTO,
+        },
+      },
+    },
+  });
+}
+
+async function generateReply(ai, contents, userProfile, summary) {
+  return ai.models.generateContent({
+    model: GEMINI_MODEL,
+    contents,
+    config: {
+      systemInstruction: BASE_SYSTEM_PROMPT(userProfile, summary),
+    },
+  });
+}
+
 export async function handleMessage({ userId, message, userProfile, authToken }) {
   if (!process.env.GEMINI_API_KEY) {
     return "Chatbot is unavailable because GEMINI_API_KEY is not configured.";
@@ -47,36 +73,15 @@ export async function handleMessage({ userId, message, userProfile, authToken })
   const contents = [...convo.messages, { role: "user", parts: [{ text: message }] }];
 
   let finalText = null;
-  let safetyCounter = 0;
-
   const ai = getGeminiClient();
 
-  while (finalText === null && safetyCounter < 5) {
-    safetyCounter += 1;
+  let response = await generateWithTools(ai, contents, userProfile, convo.summary);
+  const call = response.functionCalls?.[0];
 
-    const response = await ai.models.generateContent({
-      model: GEMINI_MODEL,
-      contents,
-      config: {
-        systemInstruction: BASE_SYSTEM_PROMPT(userProfile, convo.summary),
-        tools: GEMINI_TOOLS,
-        toolConfig: {
-          functionCallingConfig: {
-            mode: FunctionCallingConfigMode.ANY,
-            allowedFunctionNames: ["search_properties"],
-          },
-        },
-      },
-    });
-
-    const call = response.functionCalls?.[0];
-
-    if (!call) {
-      finalText = response.text || "I couldn't formulate a reply right now.";
-      contents.push({ role: "model", parts: [{ text: finalText }] });
-      break;
-    }
-
+  if (!call) {
+    finalText = response.text || "I couldn't formulate a reply right now.";
+    contents.push({ role: "model", parts: [{ text: finalText }] });
+  } else {
     const executor = TOOL_EXECUTORS[call.name];
     console.log(`Chatbot tool invoked: ${call.name}`, {
       userId,
@@ -96,6 +101,10 @@ export async function handleMessage({ userId, message, userProfile, authToken })
 
     contents.push({ role: "model", parts: [{ functionCall: call }] });
     contents.push({ role: "user", parts: [{ functionResponse: { name: call.name, response: result } }] });
+
+    response = await generateReply(ai, contents, userProfile, convo.summary);
+    finalText = response.text || "I found some options but couldn't describe them right now. Please try again.";
+    contents.push({ role: "model", parts: [{ text: finalText }] });
   }
 
   convo.messages = contents;

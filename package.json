@@ -10,7 +10,7 @@
     "test:restaurants": "node --env-file=.env src/scripts/test-recommendation.js",
     "start:restaurants": "node src/server.js",
     "dev:restaurants": "nodemon src/server.js",
-    "test:chatbot": "node src/scripts/test-chatbot.js"
+    "test:chatbot": "node --env-file=.env src/scripts/test-chatbot.js"
   },
   "dependencies": {
     "@google/genai": "^1.4.0",
