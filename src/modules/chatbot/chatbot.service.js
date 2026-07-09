@@ -10,6 +10,24 @@ const TOOL_EXECUTORS = {
   search_properties: (args, ctx) => executeSearch(args, ctx.authToken),
 };
 
+function toTextOnlyHistory(messages = []) {
+  return messages
+    .map((turn) => ({
+      role: turn.role,
+      parts: (turn.parts || [])
+        .filter((part) => typeof part.text === "string" && part.text.trim())
+        .map((part) => ({ text: part.text })),
+    }))
+    .filter((turn) => turn.parts.length > 0);
+}
+
+function normalizeFunctionCall(call) {
+  return {
+    name: call.name,
+    args: call.args ?? {},
+  };
+}
+
 async function getOrCreateConversation(userId) {
   let convo = await ChatConversation.findOne({ userId });
   if (!convo) convo = await ChatConversation.create({ userId, messages: [], summary: "" });
@@ -19,8 +37,8 @@ async function getOrCreateConversation(userId) {
 async function summarizeIfNeeded(convo) {
   if (convo.messages.length <= SUMMARIZE_AFTER) return;
 
-  const older = convo.messages.slice(0, convo.messages.length - MAX_RAW_TURNS);
-  const recent = convo.messages.slice(convo.messages.length - MAX_RAW_TURNS);
+  const older = toTextOnlyHistory(convo.messages.slice(0, convo.messages.length - MAX_RAW_TURNS));
+  const recent = toTextOnlyHistory(convo.messages.slice(convo.messages.length - MAX_RAW_TURNS));
 
   const ai = getGeminiClient();
   const summaryResponse = await ai.models.generateContent({
@@ -70,7 +88,8 @@ export async function handleMessage({ userId, message, userProfile, authToken })
   }
 
   const convo = await getOrCreateConversation(userId);
-  const contents = [...convo.messages, { role: "user", parts: [{ text: message }] }];
+  const history = toTextOnlyHistory(convo.messages);
+  const contents = [...history, { role: "user", parts: [{ text: message }] }];
 
   let finalText = null;
   const ai = getGeminiClient();
@@ -80,17 +99,18 @@ export async function handleMessage({ userId, message, userProfile, authToken })
 
   if (!call) {
     finalText = response.text || "I couldn't formulate a reply right now.";
-    contents.push({ role: "model", parts: [{ text: finalText }] });
   } else {
     const executor = TOOL_EXECUTORS[call.name];
+    const normalizedCall = normalizeFunctionCall(call);
+
     console.log(`Chatbot tool invoked: ${call.name}`, {
       userId,
-      args: call.args,
+      args: normalizedCall.args,
       conversationId: convo._id?.toString(),
     });
 
     const result = executor
-      ? await executor(call.args, { userId, authToken })
+      ? await executor(normalizedCall.args, { userId, authToken })
       : { success: false, error: `Unknown tool: ${call.name}` };
 
     console.log(`Chatbot tool result: ${call.name}`, {
@@ -99,15 +119,21 @@ export async function handleMessage({ userId, message, userProfile, authToken })
       itemCount: Array.isArray(result.items) ? result.items.length : undefined,
     });
 
-    contents.push({ role: "model", parts: [{ functionCall: call }] });
-    contents.push({ role: "user", parts: [{ functionResponse: { name: call.name, response: result } }] });
+    const toolContents = [
+      ...contents,
+      { role: "model", parts: [{ functionCall: normalizedCall }] },
+      { role: "user", parts: [{ functionResponse: { name: normalizedCall.name, response: result } }] },
+    ];
 
-    response = await generateReply(ai, contents, userProfile, convo.summary);
+    response = await generateReply(ai, toolContents, userProfile, convo.summary);
     finalText = response.text || "I found some options but couldn't describe them right now. Please try again.";
-    contents.push({ role: "model", parts: [{ text: finalText }] });
   }
 
-  convo.messages = contents;
+  convo.messages = [
+    ...history,
+    { role: "user", parts: [{ text: message }] },
+    { role: "model", parts: [{ text: finalText }] },
+  ];
   await summarizeIfNeeded(convo);
   await ChatConversation.findOneAndUpdate(
     { _id: convo._id },
